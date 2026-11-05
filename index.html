@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Укради яйцо разрушения</title>
+    <link rel="icon" type="image/webp" href="assets/ui/egg-cracked.webp">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #0b1030;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        input, textarea, [contenteditable] { -webkit-user-select: text; user-select: text; }
+        img { -webkit-user-drag: none; }
+        #world3d {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            outline: none;
+            touch-action: none;
+        }
+        /* Шрифты интерфейса: Russo One (заголовки, цифры; SIL OFL 1.1, кириллица) и Rubik (мелкий текст; SIL OFL 1.1).
+           Лицензии — assets/licenses/fonts_russoone/OFL.txt и fonts_rubik/OFL.txt. @font-face здесь, чтобы экран загрузки
+           рисовался ими до запуска скриптов; GameMenusStyle.js берёт те же семейства. */
+        @font-face { font-family: 'Russo One'; src: url('assets/fonts/russoone.ttf?v=1.1.1-c0c8bf1f') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+        @font-face { font-family: 'Rubik'; src: url('assets/fonts/rubik.ttf?v=1.1.1-c0c8bf1f') format('truetype'); font-weight: 300 900; font-style: normal; font-display: swap; }
+        /* Экран загрузки: небо с лучами, шипастая пластиковая плита, логотип с обводкой, яйцо, которое качается и трескается
+           по мере прогресса, летящие кубики-пиксели, толстый Roblox-прогресс и смешной совет. Только HTML и CSS (плюс короткий
+           скрипт ниже, который читает процент и берёт совет): работает до загрузки игровых скриптов и со шрифтом-запасным. */
+        #loading-screen {
+            --p: 0;
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: clamp(6px, 1.8vh, 14px);
+            padding: 16px 16px clamp(70px, 24vh, 170px);
+            box-sizing: border-box;
+            overflow: hidden;
+            background: linear-gradient(#1157dc 0, #2f9bff 46%, #8fdcff 66%, #bff0ff 100%);
+            font-family: 'Russo One', 'Arial Black', Impact, system-ui, sans-serif;
+            z-index: 1000;
+        }
+        #loading-screen::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 34%;
+            width: 220vmax;
+            height: 220vmax;
+            margin: -110vmax 0 0 -110vmax;
+            background: repeating-conic-gradient(rgba(255, 255, 255, .22) 0 8deg, rgba(255, 255, 255, 0) 8deg 24deg);
+            -webkit-mask-image: radial-gradient(circle, #000 0, transparent 34%);
+            mask-image: radial-gradient(circle, #000 0, transparent 34%);
+            animation: ld-rot 50s linear infinite;
+            pointer-events: none;
+        }
+        /* шипастая плита: ряды выпуклых «шипов» на зелёной пластине, тёмная кромка сверху */
+        #loading-screen::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: clamp(76px, 25vh, 180px);
+            background:
+                radial-gradient(circle at 36% 32%, rgba(255, 255, 255, .75) 0 4px, rgba(255, 255, 255, 0) 5px),
+                radial-gradient(circle at 50% 50%, #7bf06f 0 15px, #3fb43d 16px 19px, rgba(0, 0, 0, .35) 20px 22px, rgba(0, 0, 0, 0) 23px),
+                linear-gradient(#58d44f, #3aa83a);
+            background-size: 56px 56px, 56px 56px, 100% 100%;
+            border-top: 6px solid #000;
+            box-shadow: inset 0 10px 0 rgba(255, 255, 255, .25), 0 -4px 0 rgba(0, 0, 0, .2);
+            pointer-events: none;
+        }
+        #loading-screen > * { position: relative; z-index: 2; }
+        @keyframes ld-rot { to { transform: rotate(360deg); } }
+        /* кубики-пиксели вылетают из яйца */
+        .ld-cubes { position: absolute !important; inset: 0; z-index: 1 !important; pointer-events: none; overflow: hidden; }
+        .ld-cubes i { position: absolute; left: var(--x); bottom: calc(clamp(76px, 25vh, 180px) + 4vh); width: var(--s); height: var(--s); background: var(--c); border: 3px solid #000; box-shadow: inset -3px -3px 0 rgba(0, 0, 0, .25), inset 3px 3px 0 rgba(255, 255, 255, .4); opacity: 0; animation: ld-fly var(--t) cubic-bezier(.2, .6, .4, 1) var(--d) infinite; }
+        @keyframes ld-fly { 0% { opacity: 0; transform: translate(0, 0) rotate(0); } 8% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), calc(-1 * var(--h))) rotate(var(--r)); } }
+        /* яйцо: качается сильнее по мере прогресса, трещины рисуются от --p, в конце подпрыгивает */
+        .ld-egg { width: clamp(78px, 22vh, 150px); height: auto; flex: none; overflow: visible; filter: drop-shadow(0 7px 0 rgba(0, 0, 0, .35)); --amp: calc(2deg + 9deg * var(--p)); animation: ld-wobble calc(.7s - .35s * var(--p)) ease-in-out infinite alternate; transform-origin: 50% 100%; }
+        @keyframes ld-wobble { from { transform: rotate(calc(var(--amp) * -1)) scale(1.03, .97); } to { transform: rotate(var(--amp)) scale(.97, 1.03); } }
+        .ld-egg .crack { fill: none; stroke: #000; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; }
+        .ld-egg .c1 { stroke-dashoffset: calc(1 - clamp(0, var(--p) * 2.2, 1)); }
+        .ld-egg .c2 { stroke-dashoffset: calc(1 - clamp(0, var(--p) * 2.2 - 0.9, 1)); }
+        .ld-egg .c3 { stroke-dashoffset: calc(1 - clamp(0, var(--p) * 3 - 1.9, 1)); }
+        #loading-screen[data-done] .ld-egg { animation: ld-pop .5s cubic-bezier(.2, 1.6, .4, 1) infinite alternate; }
+        @keyframes ld-pop { from { transform: scale(1) rotate(-3deg); } to { transform: scale(1.12) translateY(-10px) rotate(3deg); } }
+        #loading-title {
+            margin: 0;
+            font: 400 clamp(26px, 6.2vw, 56px)/1.02 'Russo One', 'Arial Black', Impact, system-ui, sans-serif;
+            letter-spacing: .02em;
+            text-transform: uppercase;
+            color: #ffd91a;
+            text-shadow: 4.00px 0.00px 0 #000,3.70px 1.53px 0 #000,2.83px 2.83px 0 #000,1.53px 3.70px 0 #000,0.00px 4.00px 0 #000,-1.53px 3.70px 0 #000,-2.83px 2.83px 0 #000,-3.70px 1.53px 0 #000,-4.00px 0.00px 0 #000,-3.70px -1.53px 0 #000,-2.83px -2.83px 0 #000,-1.53px -3.70px 0 #000,-0.00px -4.00px 0 #000,1.53px -3.70px 0 #000,2.83px -2.83px 0 #000,3.70px -1.53px 0 #000, 0 7px 0 #000, 0 11px 0 rgba(0, 0, 0, .3);
+            text-align: center;
+            max-width: 92vw;
+            overflow-wrap: anywhere;
+            transform: rotate(-2.5deg);
+        }
+        /* прогресс как в Roblox: толстая чёрная обводка, процент прямо на полосе */
+        .loading-barwrap { position: relative; width: min(460px, 82vw); }
+        .loading-bar {
+            width: 100%;
+            height: 42px;
+            padding: 4px;
+            box-sizing: border-box;
+            background: #101646;
+            border: 5px solid #000;
+            border-radius: 24px;
+            box-shadow: 0 6px 0 rgba(0, 0, 0, .35);
+            overflow: hidden;
+        }
+        .loading-progress {
+            position: relative;
+            height: 100%;
+            width: 0%;
+            min-width: 0;
+            border-radius: 16px;
+            background: linear-gradient(#9dff8f, #32d84f 50%, #17a834 52%, #17a834);
+            transition: width .3s ease;
+            overflow: hidden;
+        }
+        .loading-progress::after {
+            content: '';
+            position: absolute;
+            left: 6px;
+            right: 6px;
+            top: 3px;
+            height: 34%;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, .6);
+        }
+        #loading-percent { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 400 22px/1 'Russo One', Impact, system-ui, sans-serif; letter-spacing: .04em; font-variant-numeric: tabular-nums; color: #fff; text-shadow: 2.00px 0.00px 0 #000,1.62px 1.18px 0 #000,0.62px 1.90px 0 #000,-0.62px 1.90px 0 #000,-1.62px 1.18px 0 #000,-2.00px 0.00px 0 #000,-1.62px -1.18px 0 #000,-0.62px -1.90px 0 #000,0.62px -1.90px 0 #000,1.62px -1.18px 0 #000, 0 3px 0 #000; pointer-events: none; }
+        .loading-text {
+            font: 700 clamp(12px, 2vh, 15px)/1.2 'Rubik', system-ui, sans-serif;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: #fff;
+            text-shadow: 2.00px 0.00px 0 #000,1.62px 1.18px 0 #000,0.62px 1.90px 0 #000,-0.62px 1.90px 0 #000,-1.62px 1.18px 0 #000,-2.00px 0.00px 0 #000,-1.62px -1.18px 0 #000,-0.62px -1.90px 0 #000,0.62px -1.90px 0 #000,1.62px -1.18px 0 #000;
+            text-align: center;
+            min-height: 1.2em;
+        }
+        /* совет: белое «облачко» с чёрной рамкой */
+        .loading-tip { max-width: min(520px, 88vw); padding: 8px 16px; border: 4px solid #000; border-radius: 18px; background: #fff; color: #14183c; font: 700 clamp(12px, 2vh, 15px)/1.3 'Rubik', system-ui, sans-serif; text-align: center; box-shadow: 0 5px 0 rgba(0, 0, 0, .35); transform: rotate(1deg); }
+        .loading-tip:empty { display: none; }
+        .loading-tip b { font: 400 1.05em/1 'Russo One', Impact, system-ui, sans-serif; color: #e0301e; text-transform: uppercase; margin-right: .4em; }
+        #loading-retry { position: relative; z-index: 2; padding: 14px 30px; border: 4px solid #000; border-radius: 16px; background: linear-gradient(#8bff8f, #2fd851 50%, #14a935 52%); color: #fff; font: 400 20px/1 'Russo One', Impact, system-ui, sans-serif; letter-spacing: .02em; text-transform: uppercase; text-shadow: 2.00px 0.00px 0 #000,1.62px 1.18px 0 #000,0.62px 1.90px 0 #000,-0.62px 1.90px 0 #000,-1.62px 1.18px 0 #000,-2.00px 0.00px 0 #000,-1.62px -1.18px 0 #000,-0.62px -1.90px 0 #000,0.62px -1.90px 0 #000,1.62px -1.18px 0 #000; box-shadow: inset 0 -5px 0 rgba(0, 0, 0, .26), 0 5px 0 #000; cursor: pointer; }
+        #loading-retry:active { transform: translateY(4px); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .26), 0 1px 0 #000; }
+        @media (max-height: 420px) { #loading-screen { gap: 4px; padding-bottom: 54px; } .ld-egg { width: 58px; } .loading-bar { height: 30px; } #loading-percent { font-size: 16px; } .loading-tip { padding: 4px 12px; border-width: 3px; } .loading-text { display: none; } }
+        @media (prefers-reduced-motion: reduce) { .ld-egg, .ld-cubes i, #loading-screen::before { animation: none; } }
+    </style>
+</head>
+<body>
+    <canvas id="world3d"></canvas>
+    <div id="loading-screen" role="status" aria-busy="true" aria-live="polite">
+        <div class="ld-cubes" aria-hidden="true"><i style="--x:34%;--s:14px;--c:#ffd91a;--d:0.0s;--t:2.6s;--dx:-90px;--h:260px;--r:200deg"></i><i style="--x:40%;--s:10px;--c:#ff8a1f;--d:0.5s;--t:2.2s;--dx:-50px;--h:300px;--r:-240deg"></i><i style="--x:46%;--s:16px;--c:#ffffff;--d:1.1s;--t:2.8s;--dx:-20px;--h:340px;--r:180deg"></i><i style="--x:50%;--s:12px;--c:#ff3b3b;--d:0.2s;--t:2.4s;--dx:10px;--h:280px;--r:260deg"></i><i style="--x:54%;--s:14px;--c:#ffd91a;--d:1.4s;--t:2.7s;--dx:40px;--h:320px;--r:-200deg"></i><i style="--x:58%;--s:10px;--c:#ff8a1f;--d:0.8s;--t:2.3s;--dx:80px;--h:290px;--r:220deg"></i><i style="--x:62%;--s:16px;--c:#fff6c0;--d:1.7s;--t:3.0s;--dx:110px;--h:250px;--r:-180deg"></i><i style="--x:44%;--s:9px;--c:#ff3b3b;--d:2.0s;--t:2.5s;--dx:-70px;--h:330px;--r:300deg"></i><i style="--x:56%;--s:9px;--c:#ffffff;--d:2.3s;--t:2.6s;--dx:60px;--h:310px;--r:-260deg"></i><i style="--x:38%;--s:12px;--c:#ffb400;--d:1.9s;--t:2.9s;--dx:-120px;--h:240px;--r:160deg"></i><i style="--x:64%;--s:12px;--c:#ff8a1f;--d:0.3s;--t:2.8s;--dx:130px;--h:270px;--r:240deg"></i><i style="--x:48%;--s:8px;--c:#ffd91a;--d:2.6s;--t:2.4s;--dx:-30px;--h:350px;--r:-150deg"></i></div>
+        <svg class="ld-egg" viewBox="0 0 120 150" aria-hidden="true" focusable="false"><defs><linearGradient id="ldEgg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fffbe8"/><stop offset=".55" stop-color="#ffe9a0"/><stop offset="1" stop-color="#f3b94a"/></linearGradient></defs><path d="M60 6C92 6 112 56 112 92c0 34-22 54-52 54S8 126 8 92C8 56 28 6 60 6z" fill="url(#ldEgg)" stroke="#000" stroke-width="6" stroke-linejoin="round"/><g fill="#e9962c" stroke="#000" stroke-width="3"><ellipse cx="38" cy="100" rx="9" ry="7"/><ellipse cx="84" cy="112" rx="7" ry="6"/><ellipse cx="74" cy="48" rx="6" ry="5"/><ellipse cx="46" cy="40" rx="5" ry="4"/></g><path d="M30 40c6-14 14-24 24-28" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".85"/><path class="crack c1" pathLength="1" d="M20 78L36 90 48 70 64 92 78 72 92 90 104 76"/><path class="crack c2" pathLength="1" d="M64 92L58 112 70 124 62 140"/><path class="crack c3" pathLength="1" d="M48 70L42 50 54 38 50 20"/></svg>
+        <h1 id="loading-title" data-t="title">Укради яйцо разрушения</h1>
+        <div class="loading-barwrap">
+            <div class="loading-bar" id="loading-meter" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="loading-progress"></div></div>
+            <div id="loading-percent">0%</div>
+        </div>
+        <div class="loading-text" data-t="loading">Загрузка…</div>
+        <div class="loading-tip" id="loading-tip"></div>
+        <button id="loading-retry" type="button" hidden></button>
+    </div>
+    <script src="https://games.pikabu.ru/sdk/sdk.js"></script>
+<script>
+        // Экран загрузки: процент -> переменная --p (трещины и качание яйца), на каждый показ — новый совет из Lang (sde.tip.1..7).
+        // Ничего не падает, если игровые скрипты или Lang ещё не загружены.
+        (() => {
+            const el = document.getElementById("loading-screen"), pct = document.getElementById("loading-percent"), tip = document.getElementById("loading-tip");
+            if (!el || !pct || !window.MutationObserver) return;
+            const sync = () => {
+                const v = Math.max(0, Math.min(100, parseInt(pct.textContent, 10) || 0));
+                el.style.setProperty("--p", String(v / 100));
+                if (v >= 100) el.setAttribute("data-done", ""); else el.removeAttribute("data-done");
+            };
+            new MutationObserver(sync).observe(pct, { childList: true, characterData: true, subtree: true });
+            let shown = false;
+            const pick = () => {
+                try {
+                    if (typeof Lang === "undefined" || !tip) return;
+                    const n = 1 + Math.floor(Math.random() * 7), key = "sde.tip." + n;
+                    if (!Lang.has(key)) return;
+                    tip.textContent = "";
+                    const b = document.createElement("b");
+                    b.textContent = Lang.t("sde.tipLabel");
+                    tip.appendChild(b);
+                    tip.appendChild(document.createTextNode(Lang.t(key)));
+                } catch (e) { /* без совета */ }
+            };
+            new MutationObserver(() => {
+                const on = el.style.display !== "none";
+                if (on && !shown) pick();
+                shown = on;
+            }).observe(el, { attributes: true, attributeFilter: ["style"] });
+        })();
+    </script>
+
+    <!-- Порядок значим: Constants.js первым (остальные читают его глобалы), main.js последним -->
+    <script src="js/Constants.js?v=1.1.1-c0c8bf1f"></script>
+    <!-- 1.40 ads-ui: поле игры на десктопе не шире 2:1 (Playgama); вторым — его resize идёт раньше обработчиков движка -->
+    <script src="js/ViewCap.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="libs/simplex-noise.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="libs/babylon.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/Maps.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/Maps2D.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/World2D.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/World3D.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/Terrain3D.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/CameraControl.js?v=1.1.1-c0c8bf1f"></script>
+    <!-- 1.40: камера не заслоняется сценой (столкновение, полупрозрачные заслоны) -->
+    <script src="js/CameraSight.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/Model3D.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/ModelFBX.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/ModelOBJ.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/ModelGLTF.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/Location3D.js?v=1.1.1-c0c8bf1f"></script>
+    <!-- world-a: Rig.js (риги и клипы), Nav.js (коллизии, высоты, пути) -->
+    <script src="js/Rig.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/Nav.js?v=1.1.1-c0c8bf1f"></script>
+    <!-- 1.30 мир (world-b): уровни графики и время суток -->
+    <script src="js/Quality.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/Sky3D.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/Pause.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/Sound.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/Lang.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/Platform.js?v=1.1.1-c0c8bf1f"></script>
+    <!-- Адаптеры площадок (Platform.register): Playgama; игра добавляет свои здесь же, после Platform.js -->
+    <script src="js/PlatformPlaygama.js?v=1.1.1-c0c8bf1f"></script>
+    <!-- Адаптеры Telegram Mini App, CrazyGames, Android-обёртки и сборки test (detect() выбирает площадку) -->
+    <script src="js/PlatformTelegram.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/PlatformCrazy.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/PlatformPikabu.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/PlatformAndroid.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/PlatformTest.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/LoadingScreen.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/ParticleFX.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/Telemetry.js?v=1.1.1-c0c8bf1f"></script>
+    <!-- 1.30 systems-b: магазин косметики, Daily Gift, колесо фортуны (логика без UI, опт-ин: Shop/DailyGift/Wheel.init в Game.js) -->
+    <script src="js/Shop.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/DailyGift.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/Wheel.js?v=1.1.1-c0c8bf1f"></script>
+    <!-- 1.30 systems-a: ввод, раскладка HUD, обучение. Opt-in: игра сама зовёт Input.init / HudLayout.init / Tutorial.init -->
+    <script src="js/HudLayout.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/Input.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/Tutorial.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/LiveWater3D.js?v=1.1.1-c0c8bf1f"></script>
+    <!-- 1.40 motion: физический блочный персонаж (opt-in). Порядок значим: MotionMath (GM) -> Humanoid -> MotionMatch -> CharacterPhysics -> Ragdoll -> Character -->
+    <script src="js/MotionMath.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/Humanoid.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/MotionMatch.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/CharacterPhysics.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/Ragdoll.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/Character.js?v=1.1.1-c0c8bf1f"></script>
+    <!-- 1.40 obby (ветка obby): трасса из деталей карты, тело героя, боты и их чат, вид. Опт-ин: игра сама зовёт ObbyCourse.build / ObbyBots.init -->
+    <script src="js/ObbyCourse.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/ObbyBody.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/ObbyChat.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/ObbyBots.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/ObbyCourseView.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/ObbyAvatar.js?v=1.1.1-c0c8bf1f"></script>
+    <!-- Скрипты игры (js/Game.js и её модули) — здесь, до main.js -->
+    <!-- воксельный мир, физика твёрдых тел, разрушение, эффекты -->
+    <script src="js/VoxMaterials.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/VoxWorld.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/VoxMesher.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/VoxRender.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/VoxPhysics.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/VoxFX.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/VoxDestruction.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameAudio.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameAudioBaked.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameMusic.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameMapBuild.js?v=1.1.1-c0c8bf1f"></script>
+    <!-- наборы карт: строители маркеров дописываются в GameMapBuild.builders -->
+    <script src="js/GameMapsA.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameMapsB.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameMapsC.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GamePlayer.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameWeapons.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameData.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/VoxFolk.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/EnemyTypes.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/NpcTypes.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameNames.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameEnemies.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameTools.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameEggs.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameMapBase.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameBase.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameRaid.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameWeather.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GamePortal.js?v=1.1.1-c0c8bf1f"></script>
+    <!-- интерфейс: стили и значки, окна и титул, HUD -->
+    <script src="js/GameInput.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/PetTypes.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GamePets.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GamePetsUi.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameShopData.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameCosmetics.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameShopUi.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameMenusStyle.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameMenus.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/GameHud.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/Game.js?v=1.1.1-c0c8bf1f"></script>
+    <script src="js/main.js?v=1.1.1-c0c8bf1f"></script>
+    <script>
+        // Игровая область: долгий тап и ПКМ не открывают меню браузера, картинки не
+        // тянутся, текст не выделяется — кроме настоящих полей ввода.
+        (() => {
+            const isField = t => t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable);
+            for (const type of ['contextmenu', 'dragstart', 'selectstart']) {
+                document.addEventListener(type, e => { if (!isField(e.target)) e.preventDefault(); });
+            }
+        })();
+    </script>
+</body>
+</html>
