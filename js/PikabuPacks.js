@@ -5,7 +5,8 @@
 PikabuShop.setup({
     colors: ['#ffb020', '#e53935'],
     ready: () => !!(typeof GameBase !== 'undefined' && GameBase.state && Array.isArray(GameBase.state.owned) && typeof Shop !== 'undefined' && Shop.state),
-    visible: () => Game.mode === 'base' && !(typeof GameMenus !== 'undefined' && GameMenus.isOpen()),
+    // титульный экран — тоже база (GameMenus.titleOn), кнопка видна; внутренние окна игры (GameMenus.cur) и захват мыши — нет
+    visible: () => Game.mode === 'base' && !(typeof GameMenus !== 'undefined' && GameMenus.cur) && !document.pointerLockElement,
     persist: () => Game.persist(true),
     button: { corner: 'tr', x: 12, y: 74 },
     packs: [

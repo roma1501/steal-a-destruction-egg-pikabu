@@ -27,7 +27,11 @@ const PikabuShop = {
         this._wait();
     },
 
-    sdk() { return (typeof Platform !== 'undefined' && Platform && Platform.sdk) || null; },
+    // cfg.sdk / cfg.pause / cfg.wrapAds / cfg.gameId — для игр не на Lory (свой адаптер платформы)
+    sdk() {
+        if (this.cfg && this.cfg.sdk) return this._safe(() => this.cfg.sdk(), null) || null;
+        return (typeof Platform !== 'undefined' && Platform && Platform.sdk) || null;
+    },
     store() { const s = this.sdk(); return s && s.store ? s.store : null; },
     noAds() { return (this.cfg && this.cfg.packs || []).some((p) => p.noAds && this.owned.has(p.id)); },
     packs() { return (this.cfg.packs || []).filter((p) => this.products.has(p.id)); },
@@ -75,7 +79,7 @@ const PikabuShop = {
     shopGrant(ids) { if (typeof Shop !== 'undefined') for (const id of ids) if (!Shop.owns(id)) Shop.grant(id, { reason: 'pikabu' }); },
 
     // --- Покупки ---------------------------------------------------------------------------
-    _key() { return 'pkbshop:' + (typeof GAME_ID !== 'undefined' ? GAME_ID : 'game') + ':granted'; },
+    _key() { return 'pkbshop:' + ((this.cfg && this.cfg.gameId) || (typeof GAME_ID !== 'undefined' ? GAME_ID : 'game')) + ':granted'; },
     _grantedList() { try { return JSON.parse(localStorage.getItem(this._key()) || '[]') || []; } catch (e) { return []; } },
     _isGranted(id) { return this._grantedList().indexOf(id) >= 0; },
     _markGranted(id) {
@@ -133,6 +137,7 @@ const PikabuShop = {
 
     // --- «Без рекламы» ----------------------------------------------------------------------
     _wrapAds() {
+        if (this.cfg.wrapAds) { this._safe(() => this.cfg.wrapAds(() => this.noAds()), null); return; }
         if (typeof Platform === 'undefined' || !Platform) return;
         const self = this;
         const wrap = (name, test) => {
@@ -155,16 +160,20 @@ const PikabuShop = {
     open() {
         if (!this.ready || this.isOpen) return;
         this.isOpen = true;
-        if (typeof Pause !== 'undefined') this._safe(() => Pause.set('shop', true), null);
+        this._pause(true);
         this._render();
         this._el.classList.add('pk-show');
         this._sync();
+    },
+    _pause(on) {
+        if (this.cfg.pause) this._safe(() => this.cfg.pause(on), null);
+        else if (typeof Pause !== 'undefined') this._safe(() => Pause.set('shop', on), null);
     },
     close() {
         if (!this.isOpen) return;
         this.isOpen = false;
         this._el.classList.remove('pk-show');
-        if (typeof Pause !== 'undefined') this._safe(() => Pause.set('shop', false), null);
+        this._pause(false);
         this._sync();
     },
 
