@@ -91,12 +91,13 @@ const Game = {
         GameCosmetics.init(this);
         if (offline > 0 && GameHud.offline) GameHud.offline(offline);
         this._bindUiAds();
-        window.addEventListener('beforeunload', () => { this.state.lastSeen = Date.now(); this.persist(); });
+        window.addEventListener('beforeunload', () => { this.state.lastSeen = Date.now(); this.persist(true); });
+        if (Platform.name === 'playables') this._playablesSetup();
         app.onFrame(dt => this.frame(dt));
         this.ready_ = true;
         // отладка: ?raid=<id> — сразу на вылазку, ?gallery — все враги на базе
         const r = params.get('raid');
-        if (r) setTimeout(() => { Pause.set('manual', false); GameRaid.start(r); }, 30);
+        if (r) setTimeout(() => { Pause.set('menu', false); GameRaid.start(r); }, 30);
         if (params.has('gallery')) this._gallery();
     },
 
@@ -314,7 +315,7 @@ const Game = {
             const btn = t && t.closest ? t.closest('button,[role="button"]') : null;
             if (!btn || btn.hasAttribute('disabled')) return;
             if (btn === pass) { pass = null; return; }
-            if (btn.matches('.sd-ad') || Platform.adActive || this._inPlay()) return;
+            if (btn.matches('.sd-ad') || btn.closest('[data-go]') || Platform.adActive || this._inPlay()) return;
             ev.preventDefault();
             ev.stopImmediatePropagation();
             if (busy) return;
@@ -328,6 +329,41 @@ const Game = {
             });
         }, true);
     },
+    /**
+     * Playables: SDK отвечает на запрос межстраничной рекламы сразу, а ролик приходит позже (onPause). Ждём сам ролик:
+     * началась пауза площадки — до её конца; не началась за 1.8 с — рекламы не будет. Так переход (вылазка, база)
+     * происходит только после рекламы, а не под ней. Ещё: сохранение при паузе площадки и попытка звука без жеста.
+     */
+    _playablesSetup() {
+        const req = Platform.interstitial.bind(Platform);
+        Platform.interstitial = async () => {
+            const r = await req();
+            await this._adCycle();
+            return r;
+        };
+        // Сохранение при паузе площадки — через Pause, а НЕ вторым ytgame.system.onPause: SDK держит один обработчик,
+        // и второй вызов снимал бы движковый (пауза 'platform', плашка «Paused», стоп цикла и звука).
+        Pause.onChange((active, reason, on) => {
+            if (reason === 'platform' && on && this.ready_) { this.state.lastSeen = Date.now(); this.persist(true); }
+        });
+        // YouTube уже дал жест (игрок открыл игру): пробуем звук сразу, иначе — по первому касанию, как обычно
+        try {
+            const ua = /** @type {any} */ (navigator).userActivation;
+            if (ua && ua.hasBeenActive) {
+                const S = /** @type {any} */ (Sound), ctx = S._ensure();
+                if (ctx) { S._sync(); S._startPending(); }
+            }
+        } catch (e) { /* звук не должен ронять игру */ }
+    },
+    async _adCycle() {
+        const wait = ms => new Promise(r => setTimeout(r, ms));
+        const showing = () => Pause.has('platform') || Pause.has('ad') || Platform.adActive;
+        const t0 = performance.now();
+        while (!showing() && performance.now() - t0 < 1800) await wait(60);
+        while (showing()) await wait(120);
+        await wait(150);
+    },
+
     _inPlay() { return !(typeof Pause !== 'undefined' && Pause.active) && !(GameHud.blocksInput && GameHud.blocksInput()); },
 
     _musicKind: '',
@@ -344,6 +380,13 @@ const Game = {
         if (kind !== this._musicKind) { this._musicKind = kind; A.music(kind); }
     },
 
-    persist() { Platform.save(this.state); },
+    _savedAt: -1e9,
+    /** Сохранить: не чаще раза в 5 с (остальное — отложенной записью); force — сразу (выход, пауза площадки). */
+    persist(force) {
+        const t = performance.now();
+        if (!force && t - this._savedAt < 5000) { this._saveT = Math.min(this._saveT, 5.2 - (t - this._savedAt) / 1000); return; }
+        this._savedAt = t;
+        Platform.save(this.state);
+    },
     persistSoon() { this._saveT = Math.min(this._saveT, 8); },
 };

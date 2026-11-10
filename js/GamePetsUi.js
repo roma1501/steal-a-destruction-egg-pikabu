@@ -67,7 +67,7 @@ const GamePetsUi = {
             if (pet) {
                 right.appendChild(h('p', 'sde-sub', this.t('sde.pet.nestTip', { b: Math.round(GamePets.BONUS[def.rarity] * 100) })));
                 acts.appendChild(this._companionBtn(pet, () => this.openNest(i)));
-                acts.appendChild(M._btn(this.t('sde.pet.toCollection'), 'b', () => { GamePets.takeOut(i); M.close(); this.M.hud.toast('sde.pet.collected'); }, { icon: 'home' }));
+                acts.appendChild(M._btn(this.t('sde.pet.toCollection'), 'b', () => { GamePets.takeOut(i); M.close(); this.M.hud.toast('sde.pet.collected'); }, { icon: 'home', go: true }));
             } else {
                 const pr = GamePets.progress(n);
                 this._live.ready = pr.ready;
@@ -90,13 +90,13 @@ const GamePetsUi = {
                         return ok;
                     }));
                 }
-                acts.appendChild(M._btn(this.t('sde.pet.toBag'), 'b', () => { GamePets.takeOut(i); M.close(); M.hud.toast('sde.eggBagged'); }, { icon: 'home' }));
+                acts.appendChild(M._btn(this.t('sde.pet.toBag'), 'b', () => { GamePets.takeOut(i); M.close(); M.hud.toast('sde.eggBagged'); }, { icon: 'home', go: true }));
             }
             const sell = M._btn(this.t('sde.sell'), 'o', (e, btn) => {
                 if (M._sellT <= 0) { M._sellT = 3; btn.querySelector('span').textContent = this.t('sde.sell.sure'); btn.classList.add('r'); return; }
                 const got = GameBase.sellPrice(i) + Math.floor(n.cash);
                 if (GameBase.sellEgg(i)) { M.close(); M.hud.toast('sde.sold', { p: GameData.money(got) }); M._settle(); }
-            }, { icon: 'money' });
+            }, { icon: 'money', go: true });
             acts.appendChild(sell);
             right.appendChild(acts);
             box.appendChild(right);
@@ -135,8 +135,10 @@ const GamePetsUi = {
             if (res.reward) w.appendChild(h('div', 'rew', this.t('sde.cx.firstReward', { p: GameData.money(res.reward) })));
             body.appendChild(w);
             const acts = h('div', 'sde-menu');
-            acts.appendChild(this._companionBtn(p, () => M.close()));
-            acts.appendChild(M._btn(this.t('sde.close'), 'g', () => M.close(), { cls: 'big' }));
+            const take = this._companionBtn(p, () => M.close());
+            take.dataset.go = '1';
+            acts.appendChild(take);
+            acts.appendChild(M._btn(this.t('sde.close'), 'g', () => M.close(), { cls: 'big', go: true }));
             body.appendChild(acts);
             M._startFw(r.color);
         });

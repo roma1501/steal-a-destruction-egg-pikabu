@@ -4,6 +4,16 @@
 (function () {
     const A = /** @type {any} */ (GameAudio);
 
+    // Окна и титул ставят паузу 'menu': мир стоит, а музыка и звуки интерфейса играют. Платформа, реклама и
+    // свёрнутая вкладка по-прежнему глушат всё (Sound._paused движка — для остальных причин).
+    if (typeof Sound !== 'undefined') {
+        /** @type {any} */ (Sound)._paused = function () {
+            if (!Pause.active) return false;
+            for (const r of Pause.reasons) if (r !== 'adwait' && r !== 'menu') return true;
+            return false;
+        };
+    }
+
     A.MUSIC = {
         menu: { vol: 0.95, fade: 1.6 }, play: { vol: 1, fade: 1.8 }, play2: { vol: 1, fade: 1.8 }, play3: { vol: 1, fade: 2.2 },
         tense: { vol: 1, fade: 0.7 }, results: { vol: 0.85, fade: 0.9 }, fail: { vol: 0.85, fade: 0.9 },

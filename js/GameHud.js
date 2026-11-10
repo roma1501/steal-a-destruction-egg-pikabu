@@ -90,7 +90,7 @@ const GameHud = {
             Input.configure({ controls: true });
         } else {
             this.state = 'title';
-            Pause.set('manual', true);
+            Pause.set('menu', true);
             Input.configure({ controls: false });
             GameMenus.showTitle();
         }
@@ -466,7 +466,7 @@ const GameHud = {
         this.state = 'play';
         GameMenus.hideTitle();
         this._applyState();
-        Pause.set('manual', false);
+        Pause.set('menu', false);
         Input.configure({ controls: true });
         Input.capture();
         if (typeof Platform !== 'undefined' && typeof Platform.gameplay === 'function') Platform.gameplay(true);

@@ -582,9 +582,11 @@ const Lang = {
     },
 
     // Разметка: data-t, data-t-title, data-t-placeholder внутри root.
+    // Ключа нет в словарях — текст разметки остаётся (иначе заголовок загрузки data-t="title" без записи GAME_TITLES
+    // площадки показывал бы сам ключ «title»).
     apply(root) {
         const r = root || document;
-        for (const el of /** @type {NodeListOf<HTMLElement>} */ (r.querySelectorAll('[data-t]'))) el.textContent = this.t(el.dataset.t);
+        for (const el of /** @type {NodeListOf<HTMLElement>} */ (r.querySelectorAll('[data-t]'))) if (this.has(el.dataset.t)) el.textContent = this.t(el.dataset.t);
         for (const el of /** @type {NodeListOf<HTMLElement>} */ (r.querySelectorAll('[data-t-title]'))) el.title = this.t(el.dataset.tTitle);
         for (const el of /** @type {NodeListOf<HTMLInputElement>} */ (r.querySelectorAll('[data-t-placeholder]'))) el.placeholder = this.t(el.dataset.tPlaceholder);
     },

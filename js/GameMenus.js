@@ -1,6 +1,6 @@
 // GameMenus.js — окна «Steal a Destruction Egg»: титульный экран, пауза и настройки, «Вылазки», «Арсенал», «Улучшения»,
 // окно гнезда, итоги вылазки (с фейерверком), «Пока тебя не было». Вызывает логику: GameBase (покупки, equip, продажа),
-// GameRaid.start, Game.backToBase. Пока окно открыто — Pause.set('manual', true), курсор отпущен, экранные кнопки скрыты;
+// GameRaid.start, Game.backToBase. Пока окно открыто — Pause.set('menu', true) (музыка не глохнет), курсор отпущен, экранные кнопки скрыты;
 // при закрытии пауза снимается и курсор захватывается снова (жест — клик по кнопке окна). Стили и значки — GameMenusStyle.js.
 
 /** @satisfies {Record<string, any>} */
@@ -76,6 +76,7 @@ const GameMenus = {
             x.type = 'button';
             x.setAttribute('aria-label', this.t('sde.close'));
             x.appendChild(SdeUi.icon('cross'));
+            x.dataset.go = '1';
             x.addEventListener('click', () => this.close());
             head.appendChild(x);
         }
@@ -99,7 +100,7 @@ const GameMenus = {
 
     // Пауза, курсор, экранные кнопки: общее для любого окна.
     _lock() {
-        Pause.set('manual', true);
+        Pause.set('menu', true);
         Input.configure({ controls: false });
         Input.releaseAll();
         Input.release();
@@ -127,7 +128,7 @@ const GameMenus = {
             this.showTitle(true);
             return;
         }
-        Pause.set('manual', false);
+        Pause.set('menu', false);
         Input.configure({ controls: true });
         if (!silent) Input.capture();
         if (hud) { hud._hintSig = ''; }
@@ -162,6 +163,7 @@ const GameMenus = {
         b.type = 'button';
         if (o && o.icon) b.appendChild(SdeUi.icon(o.icon));
         if (text !== undefined && text !== null) b.appendChild(h('span', '', text));
+        if (o && o.go) b.dataset.go = '1';
         if (fn) b.addEventListener('click', e => { try { GameAudio.ui('click'); } catch (er) { /* тишина */ } fn(e, b); });
         return b;
     },
@@ -236,7 +238,7 @@ const GameMenus = {
         txt.appendChild(row);
         logo.append(txt);
         const btns = h('div', 'sde-tbtn');
-        this._titlePlay = this._btn(this.t('sde.play'), 'g', () => this.hud.play(), { cls: 'big', icon: 'play' });
+        this._titlePlay = this._btn(this.t('sde.play'), 'g', () => this.hud.play(), { cls: 'big', icon: 'play', go: true });
         const set = this._btn(this.t('sde.settings'), 'b', () => { this._returnTitle = true; s.hidden = true; this.titleOn = false; document.documentElement.classList.remove('sde-title-on'); this.openPause('settings', true); }, { cls: 'big' });
         this._titleSet = set;
         btns.append(this._titlePlay, set);
@@ -346,9 +348,9 @@ const GameMenus = {
         const play = this.hud.state === 'play';
         if (v === 'main') {
             const m = h('div', 'sde-menu');
-            m.appendChild(this._btn(this.t('sde.continue'), 'g', () => this.close(), { cls: 'big', icon: 'play' }));
+            m.appendChild(this._btn(this.t('sde.continue'), 'g', () => this.close(), { cls: 'big', icon: 'play', go: true }));
             m.appendChild(this._btn(this.t('sde.settings'), 'b', () => this._pauseView('settings'), { icon: 'gear' }));
-            m.appendChild(this._btn(this.t('sde.howto'), 'y', () => { this.close(); this.hud._tutSkipBase = false; this.hud._tutPending = 'replay'; }, { icon: 'question' }));
+            m.appendChild(this._btn(this.t('sde.howto'), 'y', () => { this.close(); this.hud._tutSkipBase = false; this.hud._tutPending = 'replay'; }, { icon: 'question', go: true }));
             if (raid && play) m.appendChild(this._btn(this.t('sde.toBase'), 'r', () => this._pauseView('leave'), { icon: 'home' }));
             body.appendChild(m);
         } else if (v === 'leave') {
@@ -358,7 +360,7 @@ const GameMenus = {
             m.appendChild(this._btn(this.t('sde.leave.go'), 'r', () => {
                 this.close(true);
                 if (typeof GameRaid !== 'undefined' && GameRaid.phase !== 'done') GameRaid.aborted = true, GameRaid.finish(false);
-            }, { icon: 'skull' }));
+            }, { icon: 'skull', go: true }));
             body.appendChild(m);
         } else this._settingsFill(body);
         if (v === 'settings') {
@@ -564,6 +566,7 @@ const GameMenus = {
         card.appendChild(info);
         const go = this._btn(this.t('sde.raids.go'), 'g', null, { cls: 'wide sm off', icon: 'play' });
         go.dataset.raid = r.id;
+        go.dataset.go = '1';
         go.disabled = true;
         card.appendChild(go);
         const lock = h('div', 'sde-lockov');
@@ -963,7 +966,7 @@ const GameMenus = {
                     return true;
                 }));
             }
-            foot.appendChild(this._btn(this.t('sde.toBase'), 'g', () => this._toBase(), { cls: 'big', icon: 'home' }));
+            foot.appendChild(this._btn(this.t('sde.toBase'), 'g', () => this._toBase(), { cls: 'big', icon: 'home', go: true }));
         });
     },
 
@@ -1034,7 +1037,7 @@ const GameMenus = {
             this._counts.push({ el: v, to: Math.floor(amount), t: 0, fmt: n => '+' + GameData.money(n) });
             box.appendChild(h('p', 'sde-sub', this.t('sde.off.text')));
             body.appendChild(box);
-            foot.appendChild(this._btn(this.t('sde.off.ok'), 'g', () => this.close(), { cls: 'big' }));
+            foot.appendChild(this._btn(this.t('sde.off.ok'), 'g', () => this.close(), { cls: 'big', go: true }));
         });
     },
 
